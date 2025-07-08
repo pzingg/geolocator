@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>Roger Hooper's Waterfalls</title>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script type="text/javascript" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <style type="text/css">
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+        }
+        </style>
+    </head>
+    <body>
+        <div id="map"></div>
+        <script type="text/javascript">
+
+            // Replace ^([A-Za-z\s]+)\t([-.0-9]+)\t([-.0-9]+)
+            // with {"name": $1, "lat_lng": [$2, $3]},
+            async function load_markers() {
+                try {
+                    const response = await fetch('./map_data.json');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const data = await response.json();
+
+                    // For each waterfall:
+                    data.forEach((waterfall) => {
+                        marker = L.marker(waterfall.lat_lng).addTo(map);
+                        marker.bindPopup(`<b>${waterfall.name}</b>`);
+                    });
+                } catch (error) {
+                    console.error('Error loading JSON:', error);
+                }
+            }
+
+            // Initialize a map centered at (37.93132, -122.63520) at zoom level 9
+            // Cataract Falls, Marin County, California
+            var map = L.map('map').setView([37.93132, -122.63520], 11);
+
+            // Stamen terrain: https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png
+            // Stamen terrain-background: https://tiles.stadiamaps.com/tiles/stamen_terrain_background/{z}/{x}/{y}{r}.png
+            // Stamen terrain-lines: https://tiles.stadiamaps.com/tiles/stamen_terrain_lines/{z}/{x}/{y}{r}.png
+            // Stadia demo: https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png
+            // Style URL format in XYZ PNG format; see our documentation for more options
+
+            L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png', {
+                maxZoom: 20,
+                attribution: '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
+            }).addTo(map);
+
+            load_markers();
+        </script>
+    </body>
+</html>
