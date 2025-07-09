@@ -1,1 +1,4 @@
 *.kml
+*.png
+*.svg
+api_key.txt
