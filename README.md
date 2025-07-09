@@ -21,3 +21,7 @@ Had to install cairo, by first installing MSYS2 on Windows, and then:
 
 * `pacman -S mingw-w64-x86_64-cairo`
 * `python -m pip install pycairo`
+
+For Stadia Static Maps, we only fetch one big tile (so most of py-staticmaps is not useful).
+However py-staticmaps can calculate the center and zoom for us, based on the bounds of 
+Markers and other objects added to the Context.
