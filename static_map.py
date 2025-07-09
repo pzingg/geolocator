@@ -17,9 +17,9 @@ VERSION = "0.4.0"
 # PROVIDER = "osm"
 PROVIDER = "stadia"
 BOUNDS = "51.0,-126.0 31.5,-113.0"
-WIDTH = 22 * 72
-HEIGHT = 28 * 72
-STADIA_ZOOM = 6
+WIDTH = 22 * 150
+HEIGHT = 28 * 150
+STADIA_ZOOM = 7
 LIGHT_ORANGE = staticmaps.Color(0xFF, 0xD5, 0x80)
 
 class SingleTileProvider():
@@ -55,7 +55,7 @@ def stadia_marker(marker: LabeledMarker) -> str:
     lat = marker.latlng().lat().degrees
     lng = marker.latlng().lng().degrees
     color = stadia_color(marker._color)
-    style = "stamen_terrain_sm"
+    style = "stamen_terrain" # "stamen_terrain_sm" 
     label = marker._label[:1]
     return f"&m={lat},{lng},{style},{color},{label}"
 
