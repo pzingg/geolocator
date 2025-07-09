@@ -7,19 +7,22 @@ import io
 import pathlib
 import os
 import sys
+import argparse
 from PIL import Image as PIL_Image  # type: ignore
 from PIL import ImageDraw as PIL_ImageDraw  # type: ignore
 
-GITHUB_URL = "https://github.com/flopp/py-staticmaps"
-LIB_NAME = "py-staticmaps"
-VERSION = "0.4.0"
+GITHUB_URL = 'https://github.com/flopp/py-staticmaps'
+LIB_NAME = 'py-staticmaps'
+VERSION = '0.4.0'
 
-# PROVIDER = "osm"
-PROVIDER = "stadia"
-BOUNDS = "51.0,-126.0 31.5,-113.0"
+# PROVIDER = 'osm'
+PROVIDER = 'stadia'
+BOUNDS = '51.0,-126.0 31.5,-113.0'
 WIDTH = 22 * 150
 HEIGHT = 28 * 150
-STADIA_ZOOM = 7
+ZOOM_STADIA = 7
+ZOOM_OSM = 8
+MARKER_SIZE_OSM = 10
 LIGHT_ORANGE = staticmaps.Color(0xFF, 0xD5, 0x80)
 
 class SingleTileProvider():
@@ -55,7 +58,7 @@ def stadia_marker(marker: LabeledMarker) -> str:
     lat = marker.latlng().lat().degrees
     lng = marker.latlng().lng().degrees
     color = stadia_color(marker._color)
-    style = "stamen_terrain" # "stamen_terrain_sm" 
+    style = 'stamen_terrain' # 'stamen_terrain_sm' 
     label = marker._label[:1]
     return f"&m={lat},{lng},{style},{color},{label}"
 
@@ -64,7 +67,7 @@ def add_markers(context: staticmaps.Context, json_file):
         markers = json.load(f)
     for marker in markers:
         latlng = staticmaps.create_latlng(marker['lat_lng'][0], marker['lat_lng'][1])
-        obj = LabeledMarker(latlng, color=LIGHT_ORANGE, size=4, label=marker['name'])
+        obj = LabeledMarker(latlng, color=LIGHT_ORANGE, size=MARKER_SIZE_OSM, label=marker['name'])
         context.add_object(obj)
 
 def fetch_stadia(context: staticmaps.Context, api_key: str, cache_dir: str, center: s2sphere.LatLng, zoom: int, width: int, height: int) -> typing.Optional[bytes]:
@@ -74,10 +77,8 @@ def fetch_stadia(context: staticmaps.Context, api_key: str, cache_dir: str, cent
     if cache_dir is not None:
         file_name = os.path.join(cache_dir, 'stadia-terrain', str(zoom), '1', '1.png')
         if os.path.isfile(file_name):
-            with open(file_name, "rb") as f:
-                data = f.read()
-                print(f"read {len(data)} cached tile bytes")
-                return data
+            with open(file_name, 'rb') as f:
+                return f.read()
 
     c = latlng_to_string(center)
     url = f"https://tiles.stadiamaps.com/static/stamen_terrain.png?api_key={api_key}&size={width}x{height}&center={c}&zoom={zoom}"
@@ -85,19 +86,16 @@ def fetch_stadia(context: staticmaps.Context, api_key: str, cache_dir: str, cent
     if context._objects is not None:
         url = url + ''.join([stadia_marker(marker) for marker in context._objects if isinstance(marker, LabeledMarker)])
 
-    print(f"cache file {file_name}")
-    print(f"url {url}")
-    res = requests.get(url, headers={"user-agent": user_agent})
+    res = requests.get(url, headers={'user-agent': user_agent})
     if res.status_code == 200:
         data = res.content
     else:
         print(f"fetch -> {res.status_code}")
-        raise RuntimeError("fetch {} yields {}".format(url, res.status_code))
+        raise RuntimeError(f"fetch {url} yields {res.status_code}")
 
     if file_name is not None:
-        print(f"caching {len(data)} tile bytes to {file_name}")
         pathlib.Path(os.path.dirname(file_name)).mkdir(parents=True, exist_ok=True)
-        with open(file_name, "wb") as f:
+        with open(file_name, 'wb') as f:
             f.write(data)
     else:
         print(f"downloaded {len(data)} tile bytes")
@@ -117,13 +115,13 @@ def render_stadia(context: staticmaps.Context, api_key: str, width: int, height:
     """
     center, zoom = context.determine_center_zoom(width, height)
     if center is None or zoom is None:
-        raise RuntimeError("Cannot render map without center/zoom.")
+        raise RuntimeError('Cannot render map without center/zoom.')
 
     # We'll override
     center = context._bounds.get_center()
-    zoom = STADIA_ZOOM
+    zoom = ZOOM_STADIA
 
-    image = PIL_Image.new("RGBA", (width, height))
+    image = PIL_Image.new('RGBA', (width, height))
     draw = PIL_ImageDraw.Draw(image)
 
     image_data = fetch_stadia(context, api_key, context._cache_dir, center, zoom, width, height)
@@ -135,39 +133,57 @@ def render_stadia(context: staticmaps.Context, api_key: str, width: int, height:
 
     return image
 
+def create_static_map(provider: str) -> None:
+    context = staticmaps.Context()
+    add_markers(context, "C:\\Users\\Rachel\\Documents\\GitHub\\geolocator\\map_data.json")
+    bounds = staticmaps.parse_latlngs2rect(BOUNDS)
+    context.add_bounds(bounds)
+    
+    match provider:
+        case 'osm':
+            context.set_cache_dir("C:\\Users\\Rachel\\Documents\\GitHub\\geolocator\\cache")
+            context.set_tile_provider(staticmaps.tile_provider_OSM)
 
-context = staticmaps.Context()
-add_markers(context, "C:\\Users\\Rachel\\Documents\\GitHub\\geolocator\\map_data.json")
-bounds = staticmaps.parse_latlngs2rect(BOUNDS)
-print(f"bounds: {bounds}")
-context.add_bounds(bounds)
+            center = context._bounds.get_center()
+            context.set_center(center)
+            context.set_zoom(ZOOM_OSM)
 
-if PROVIDER == 'osm':
-    context.set_cache_dir("C:\\Users\\Rachel\\Documents\\GitHub\\geolocator\\cache")
-    context.set_tile_provider(staticmaps.tile_provider_OSM)
+            # render non-anti-aliased png
+            image = context.render_pillow(WIDTH, HEIGHT)
+            image.save('pacific_waterfalls_osm.pillow.png')
 
-    # render non-anti-aliased png
-    image = context.render_pillow(WIDTH, HEIGHT)
-    image.save("pacific_waterfalls_osm.pillow.png")
+            # render anti-aliased png (this only works if pycairo is installed)
+            image = context.render_cairo(WIDTH, HEIGHT)
+            image.write_to_png('pacific_waterfalls.cairo.png')
 
-    # render anti-aliased png (this only works if pycairo is installed)
-    image = context.render_cairo(WIDTH, HEIGHT)
-    image.write_to_png("pacific_waterfalls.cairo.png")
+            # render svg
+            svg_image = context.render_svg(WIDTH, HEIGHT)
+            with open('pacific_waterfalls.svg', 'w', encoding='utf-8') as f:
+                svg_image.write(f, pretty=True)
 
-    # render svg
-    svg_image = context.render_svg(WIDTH, HEIGHT)
-    with open("pacific_waterfalls.svg", "w", encoding="utf-8") as f:
-        svg_image.write(f, pretty=True)
+        case 'stadia':
+            with open('api_key.txt', 'r') as f:
+                api_key = f.readline().strip()
 
-if PROVIDER == 'stadia':
-    with open('api_key.txt', 'r') as f:
-        api_key = f.readline().strip()
+            context.set_cache_dir(None)
+            # context.set_cache_dir("C:\\Users\\Rachel\\Documents\\GitHub\\geolocator\\cache")
+            p = SingleTileProvider('Maps (C) StadiaMaps (C) StamenDesign, Data (C) OpenStreetMap.org contributor', WIDTH, HEIGHT)
+            context.set_tile_provider(p)
 
-    context.set_cache_dir(None)
-    # context.set_cache_dir("C:\\Users\\Rachel\\Documents\\GitHub\\geolocator\\cache")
-    p = SingleTileProvider('Maps (C) StadiaMaps (C) StamenDesign, Data (C) OpenStreetMap.org contributor', WIDTH, HEIGHT)
-    context.set_tile_provider(p)
+            # render non-anti-aliased png
+            image = render_stadia(context, api_key, p._width, p._height)
+            image.save('pacific_waterfalls_stadia.pillow.png')
 
-    # render non-anti-aliased png
-    image = render_stadia(context, api_key, p._width, p._height)
-    image.save("pacific_waterfalls_stadia.pillow.png")
+if __name__ == '__main__':
+    args_parser = argparse.ArgumentParser(prog='static_map')
+    args_parser.add_argument(
+        'provider',
+        metavar='PROVIDER',
+        type=str,
+        choices=['osm', 'stadia'],
+        # nargs=1,
+    )
+
+    args = args_parser.parse_args()
+
+    create_static_map(args.provider)
